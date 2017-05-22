@@ -466,6 +466,8 @@ Wannacry利用WriteRegistryFunc将在"HKLM\Software\WanaCrypt0r"以及"HKCU\Soft
     WINDBG>du 0012f71c
     0012f71c  "Software\WanaCrypt0r"
 
+![](https://github.com/tedzhang2891/Ransomware/blob/master/Wannacry/picture/WriteRegistry.png)
+
 **提取Payload**
 
 之前提到的程序逻辑都很简单，从这里开始往后就开始有意思了，分析这些代码还是很难的，同时也非常有意思。 首先来看看 Payload Extractor的实现。
@@ -481,6 +483,8 @@ if ( hRes
     && (pResource = LockResource(pResourceByte)) != 0
     && (nSize = SizeofResource(hModule, hRes), (pWnResult = StartVersion(pResource, nSize, WNcry@2ol7)) != 0) )
 ```
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/Wannacry/picture/ResourcePayload.png)
 
 之后调用StartVersion函数初始化一个CResource对象，这个对象会将load出来的Resource数据加载进去，之所以用这个函数名称，是以为它还有其它版本的加载方法，其中一个版本是通过一个文件句柄来加载Payload，也就是说这个Payload Extractor同时也支持从文件中提取Payload。
 
@@ -673,10 +677,80 @@ if ( pBuffer[index] == 'P' && pBuffer[index + 1] == 'K' && pBuffer[index + 2] ==
 
 > PS. 我们在程序运行过程中看到过的 c.wnry u.wnry 等都是在这个阶段释放出来的。
 
+<table>
+    <tr>
+        <th>DropFile</th>
+        <th>Category</th>
+		<th>Usage</th>
+		<th>Data</th>
+    </tr>
+	<tr>
+        <th>c.wnry</th>
+        <th>Text</th>
+		<th>C&C Server; Bitcoin address</th>
+		<th>
+			gx7ekbenv2riucmf.onion;
+			https://dist.torproject.org/torbrowser/6.5.1/tor-win32-0.2.9.10.zip
+		</th>
+    </tr>
+	<tr>
+        <th>r.wnry</th>
+        <th>Text</th>
+		<th>Q & A</th>
+		<th>Q:  What's wrong with my files?</th>
+    </tr>
+	<tr>
+        <th>s.wnry</th>
+        <th>PK Format</th>
+		<th></th>
+		<th>None</th>
+    </tr>
+	<tr>
+        <th>t.wnry</th>
+        <th>EncryptFile</th>
+		<th>Attack Payload</th>
+		<th>None</th>
+    </tr>
+	<tr>
+        <th>u.wnry</th>
+        <th>PE</th>
+		<th>UI Interface</th>
+		<th>Wana Decrypt0r 2.0</th>
+    </tr>
+</table>
+
+
 
 **写Bitcoin钱包地址**
 
+这个过程比较简单，首先有3个bitcoin的钱包地址，随机选择一个，写到buffer的第178字节开始的后35字节中，然后把buffer写到c.wnry中。
 
+```C++
+int SetBitcoinAddress()
+{
+  int result;
+  int iRandom; 
+  char DstBuf[780]; 
+  char *bitcoin1; 
+  char *bitcoin2;
+  char *bitcoin3; 
 
+  bitcoin1 = a13am4vw2dhxygx;
+  bitcoin2 = a12t9ydpgwuez9n;
+  bitcoin3 = a115p7ummngoj1p;
+  result = RWBuffer(DstBuf, 1);
+  if ( result )
+  {
+    iRandom = rand();
+    strcpy(&DstBuf[178], (&bitcoin1)[4 * (iRandom % 3)]);
+    result = RWBuffer(DstBuf, 0);
+  }
+  return result;
+}
+```
+
+**PeLoader**
+
+到这里Payload也已经成功的提取出来了，那我们之前说过Wannacry是分两阶段攻击的，第一阶段还有一个最重要的任务就是将加密程序悄无声息的加载起来。 现在到了激动人心的时刻，通过接下来的分析，我们能够掌握PeLoader的运行原理。 作为第二阶段攻击的最重要的Weapon，Peloader将无视微软API，来完成Pe dll的动态加载。
 
 
