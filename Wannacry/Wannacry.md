@@ -15,7 +15,7 @@ The attack started on Friday, 12 May 2017, and within a day was reported to have
 
 Wannacry的主程序会被修改会**tasksche.exe**，起这个名字的目的是为了迷惑用户。
 
-```c_cpp
+```C++
 int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
   char **argv; // eax@2
