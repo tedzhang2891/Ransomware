@@ -715,7 +715,7 @@ if ( pBuffer[index] == 'P' && pBuffer[index + 1] == 'K' && pBuffer[index + 2] ==
         <th>u.wnry</th>
         <th>PE</th>
 		<th>UI Interface</th>
-		<th>Wana Decrypt0r 2.0</th>
+		<th>![](https://github.com/tedzhang2891/Ransomware/blob/master/Wannacry/picture/Wana%20Decrypt0r.png)</th>
     </tr>
 </table>
 
