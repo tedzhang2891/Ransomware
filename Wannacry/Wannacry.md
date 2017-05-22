@@ -468,6 +468,24 @@ Wannacry利用WriteRegistryFunc将在"HKLM\Software\WanaCrypt0r"以及"HKCU\Soft
 
 **提取Payload**
 
+之前提到的程序逻辑都很简单，从这里开始往后就开始有意思了，分析这些代码还是很难的，同时也非常有意思。 首先来看看 Payload Extractor的实现。
+
+Wannacry在自己的res segment中存放了很多加密过的Data，这里面有很多有恶意的程序，要想了解它们都是做什么的，我们需要先了解它的内存布局。
+
+提取函数首先将资源数据加载到内存中：
+
+```C++
+hRes = FindResourceA(hModule, (LPCSTR)'\b\n', aXIA);
+  if ( hRes
+    && (pResourceByte = LoadResource(hModule, hRes)) != 0
+    && (pResource = LockResource(pResourceByte)) != 0
+    && (nSize = SizeofResource(hModule, hRes), (pWnResult = StartVersion(pResource, nSize, WNcry@2ol7)) != 0) )
+```
+
+
+    WINDBG>db 12F644 l4
+    0012f644  50 4b 05 06  									PK..
+
 
 **写Bitcoin钱包地址**
 
