@@ -476,15 +476,202 @@ Wannacry在自己的res segment中存放了很多加密过的Data，这里面有
 
 ```C++
 hRes = FindResourceA(hModule, (LPCSTR)'\b\n', aXIA);
-  if ( hRes
+if ( hRes
     && (pResourceByte = LoadResource(hModule, hRes)) != 0
     && (pResource = LockResource(pResourceByte)) != 0
     && (nSize = SizeofResource(hModule, hRes), (pWnResult = StartVersion(pResource, nSize, WNcry@2ol7)) != 0) )
 ```
 
+之后调用StartVersion函数初始化一个CResource对象，这个对象会将load出来的Resource数据加载进去，之所以用这个函数名称，是以为它还有其它版本的加载方法，其中一个版本是通过一个文件句柄来加载Payload，也就是说这个Payload Extractor同时也支持从文件中提取Payload。
 
-    WINDBG>db 12F644 l4
-    0012f644  50 4b 05 06  									PK..
+```C++
+struct CResource
+{
+  CWnBigResData *pWnData;
+  int bflag1;
+  char pBuffer[300];
+  int bflag2;
+  char *pSignture;
+  void *pSomeThing;
+  char szCurrentDir[260];
+};
+```
+
+CResource如上面结构所示，有一些数据至今我还不清楚是做什么用的，但是最重要的数据结构是一个名为CWnBigResData的数据结构，这个数据结构的前0x20是CWnResData它包含了Payload的一些重要信息。 另外pSignture是这个对象的一个特征在这里是外面传入的数据“**WNcry@20l7**”。
+
+
+```C++
+CWnResult *__cdecl StartVersion3(HANDLE hRes, int nSize, int version, char *WNcry@2ol7)
+{
+  CResource *p; 
+  CResource *pRes; 
+  CWnResult *result; 
+
+  p = operator new(0x244u);
+  if ( p )
+    pRes = CResource::ctor(p, WNcry@2ol7);
+  else
+    pRes = 0;
+  g_StatusCode = CResource::Initialize(pRes, hRes, nSize, version);
+  if ( g_StatusCode )
+  {
+    if ( pRes )
+    {
+      CResource::dtor(pRes);
+      operator delete(pRes);
+    }
+    result = 0;
+  }
+  else
+  {
+    result = operator new(8u);
+    result->bLoadSuccess = 1;
+    result->pResource = pRes;
+  }
+  return result;
+}
+```
+
+StartVersion3是被StartVersion调用的，并且传入了3给version这个参数，因为这个参数的作用，程序会从Memory中读取Payload而不是文件句柄。 这个函数创建了CResource对象并调用了它的Initialize方法进行初始化。 初始化Payload的结果会记录在全局变量g_StatusCode中，如果初始化失败，会析构并退出，同时程序将无法成功。如果成功会创建一个CResult对象，这个对象有两个数据成员，bLoadSuccess用来表示初始化成功，pResource指针指向CResource对象。
+
+```C++
+pWnResData->bIsFile = 0;
+pWnResData->lpResourceData = lpResourceData;
+pWnResData->dwPos = 1;
+LOBYTE(pWnResData->bIsFileHandle) = 0;
+pWnResData->nResourceSize = nSize;
+pWnResData->nCurrentOffsetPos = 0;
+pWnResData->nOffsetInBuffer = 0;
+```
+
+上面的代码片段是当version参数等于3时候的行为，有两个重要的数据pWnResData->lpResourceData被赋值为指向资源段的指针，pWnResData->nResourceSize是资源段的大小值。
+
+最重要的一个函数，来自于GetDataFromResource,这个方法真正的从Resource中加载数据到内存数据结构中。
+
+```C++
+struct CWnResData
+{
+  char bIsFile; 
+  char dwPos;
+  char field_2;
+  char field_3;
+  HANDLE hFile;
+  int field_8;
+  int nOffsetInBuffer;
+  int bIsFileHandle;
+  LPCSTR lpResourceData;
+  int nResourceSize;
+  int nCurrentOffsetPos;
+};
+```
+
+**这里的有趣的是，针对ResourceData的load是从后往前读的，这与常规的数据加载从Memory低往高读取的方式是反的，可以看出作者这么做真是用心良苦。**
+
+	34:961Fh: 50 4B 05 06 00 00 00 00 24 00 24 00 D8 0D 00 00  PK......$.$.Ø... 
+	34:962Fh: 47 88 34 00 00 00                                Gˆ4...
+
+上面的数据是我从Resource中提取出来的原始数据的最后22字节，通过对最后22个字节的分析，我将展示程序如何解释这种自定义协议的数据格式。
+
+```C++
+signed int __cdecl FindPkSignPosition(CWnResData *pResData)
+{
+  DWORD nSize; 
+  int nBufferSize; 
+  char *pBuffer; 
+  signed int result; 
+  signed int nHeadSize; 
+  int nAllSize; 
+  int index; 
+  DWORD nTotalSize; 
+  signed int nPKPos; 
+  unsigned int nDataSize; 
+  signed int nBlockSize; 
+
+  if ( ResetCurrentOffset(pResData, 0, 2) )
+    goto LABEL_27;
+  nSize = GetResourceDataSize(pResData);
+  nTotalSize = nSize;
+  nBlockSize = 65535;
+  if ( nSize < 65535 )
+    nBlockSize = nSize;
+  nBufferSize = 1028;
+  pBuffer = malloc(1028u);
+  if ( pBuffer )
+  {
+    nPKPos = -1;
+    nHeadSize = 4;
+    if ( nBlockSize > 4 )
+    {
+      while ( 1 )
+      {
+        nAllSize = nHeadSize + 1024;
+        nDataSize = nBlockSize;
+        if ( nAllSize <= nBlockSize )
+          nDataSize = nAllSize;
+        if ( nTotalSize - (nTotalSize - nDataSize) <= 1028 )
+          nBufferSize = nTotalSize - (nTotalSize - nDataSize);
+        if ( ResetCurrentOffset(pResData, nTotalSize - nDataSize, 0)
+          || WncryReadData(pBuffer, nBufferSize, 1, pResData) != 1 )
+          break;
+        index = nBufferSize - 3;
+        while ( 1 )
+        {
+          --index;
+          if ( index < 0 )
+            break;
+          if ( pBuffer[index] == 'P' && pBuffer[index + 1] == 'K' && pBuffer[index + 2] == 5 && pBuffer[index + 3] == 6 )
+          {
+            nPKPos = nTotalSize - nDataSize + index;
+            break;
+          }
+        }
+        if ( nPKPos )
+          break;
+        if ( nDataSize >= nBlockSize )
+          break;
+        nHeadSize = nDataSize;
+        nBufferSize = 1028;
+      }
+    }
+    free(pBuffer);
+    result = nPKPos;
+  }
+  else
+  {
+LABEL_27:
+    result = -1;
+  }
+  return result;
+}
+```
+
+FindPkSignPosition函数的作用是将pResourceBuffer指向最后一个PK0506的标记，上面的函数中有两个ResetCurrentOffset函数，两次调用中最后一个参数一次是2一次是0, 2代表指针当前位置是Buffer的末尾，0代表指针的值是一个绝为位置。所以第一调用时，将指针的位置移动了Buffer的末尾，第二次调用时指针已经指向了Buffer末尾，Offset的偏移等于一个Block的大小1028个自己。 所以这两次操作后，指针实际上等于从Buffer末尾往前偏移了1028字节，所以指针的当前位置等于Buffer总大小减去一个Block的大小。
+
+	pBuffer = pBuffer + nTotalSize - nBlock
+
+定位完指针后，程序读取了一个Block大小的数据进了BlockBuffer中。
+
+```C++
+if ( pBuffer[index] == 'P' && pBuffer[index + 1] == 'K' && pBuffer[index + 2] == 5 && pBuffer[index + 3] == 6 )
+```
+
+注意这个代码片段，程序开始从这个Block的最后一个字节反向搜索‘PK56’这个特殊的标记值。 它会一直读取直到读到我在上面贴出来的数据片段为止。
+
+观察上面的数据，程序会继续读取，将这些数据写入内存数据结构中，读取方法有2种，一次读取2个字节和一次读取4个字节。就我列出的数据，数据结构如下：
+
+	Magic: 504B0506
+	Reserved1: 0
+	Reserved2: 0
+	Unknown1: 24
+	Unknown1: 24
+	Current segment offset: 00000dd8
+	The absolute position of the previous segment: 00348847
+
+其中前一个段的绝对位置加上当前端的偏移等于当前段的绝对位置，如果尝试将这两个值相加，会发现等于我上面贴出的数据的当前位置，因此通过这个方法我们就可以不断的定位到前一个段，一直遍历到Memory的开头。
+
+因为Payload Extractor的代码非常多，它需要将所有段中的数据都提取出来，并且通过写文件的方法释放出来，所以就不在这里继续分析了，如果感兴趣，通过我上面的启发应该可以自己尝试的分析代码将所有的数据提取出来。
+
+> PS. 我们在程序运行过程中看到过的 c.wnry u.wnry 等都是在这个阶段释放出来的。
 
 
 **写Bitcoin钱包地址**
