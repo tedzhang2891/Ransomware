@@ -1213,4 +1213,38 @@ payload dll in-depth analysis has been done, I need some time to write report in
 
 ## phase three ##
 
-extract Hack Weapon coming soon.
+PeLoader weapons have been extracted, we all know, malware industry has been modular, the production of the virus wanted to produce the same product, there are upstream factory production of raw materials, downstream factories through the assembly of raw materials into the product.
+
+The black market can be traded to many components, hackers can choose these components to maximize the degree of accelerated virus production, when build a car are no one like to start from the wheels. We can look at the black market on a variety of virus components can trade what price, such as I want to show PeLoader.
+
+Through the first phase of the analysis, I have mastered the full design of tasksche.exe, so I can easily locate the location to 0x4021E9, Wannacry 0x004021E9 is a component of its PeLoader entrance, which is obtained through the analysis Conclusion, this function is used to load a dll to memory, and do not call the Microsoft API case to complete the import table repair, base address relocation and other operations, hide the dll load behavior, even monitor can not be found.
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/Wannacry/extractor/BuildPeExecutor.png)
+
+In order to call the function in Dll, I also need a feature is SeekFunction, which is responsible for searching Dll's export table, find the need to call the function. Its position is at 0x402924.
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/Wannacry/extractor/SeekFunction.png)
+
+Through some efforts, including the extraction of assembly instructions code to solve the cross reference, directive, switch bitmap, SEH, compile, Link and other issues, I got the Peloader assembly instruction code, and successfully compiled into the object file.
+
+当前，一切问题都已经解决，并且POC代码也写好了。 简单说下POC代码分两部分，一部分是自己写了一个SayHi.dll，这个dll导出一个getMessage的function，这个function很简单就返回一个字符串。PeLoader只要能加载这个dll，并调用getMessage就说明抽取武器成功。
+第二部分就是整合了PeLoader汇编代码的测试程序，它会先将SayHi.dll读入内存，然后调用上面的BuildPeExecutor加载dll，然后调用seekFunction找到getMessage函数的其实地址并调用。
+
+At present, all the problems have been resolved, and POC code is also written. Simply put the POC code in two parts, one is SayHi.dll, the dll export the getMessage function, this function is very simple to return a string. If the PeLoader can load the dll and call getMessage, it shows the success of extracting the weapon.
+The second part is the integration of the PeLoader assembly code of the test program, it will first read SayHi.dll memory, call the above BuildPeExecutor load dll, and then call seekFunction getMessage function to find the address and call.
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/Wannacry/extractor/SayHi.png)
+
+This is the getMessage implementation in SayHi.dll
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/Wannacry/extractor/call_getMessage.png)
+
+This is part of the POC code implementation, so the expected result is the program, first print "Load Success successful", and then print out "Hi Guys".
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/Wannacry/extractor/ExpolitSuccess.png)
+
+Finally, through procmon.exe to confirm that the whole process is not no LoadImage action, because the purpose of hacking is that, hide the payload.
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/Wannacry/extractor/procmon.png)
+
+Note that the LoadImage operation on the above figure does not have SayHi, but SayHi has been successfully loaded, and getMessage has been successfully called.
