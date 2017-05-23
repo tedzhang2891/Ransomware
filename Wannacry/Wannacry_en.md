@@ -1208,3 +1208,9 @@ Call the export function, the attack starts.
 
 
 ## phase two ##
+
+payload dll in-depth analysis has been done, I need some time to write report in here.
+
+## phase three ##
+
+extract Hack Weapon coming soon.

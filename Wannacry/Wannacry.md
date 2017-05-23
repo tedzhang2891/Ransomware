@@ -29,7 +29,7 @@ About other Ransomware in-depth analysis please refer to my blog:
 
 在这次分析结束后，我会将这两个Hack Weapon抽取出来，并写一个POC代码，复用这两个组件。
 
-## first phase ##
+## phase one ##
 
 **tasksche** 
 
@@ -1206,4 +1206,10 @@ fpTaskStart = Seek2TaskStart(pPeBuilder, szTaskStart);
 调用导出函数，攻击开始。
 
 
-## second phase ##
+## phase two ##
+
+payload dll in-depth analysis has been done, I need some time to write report in here.
+
+## phase three ##
+
+extract Hack Weapon coming soon.
