@@ -1227,9 +1227,6 @@ In order to call the function in Dll, I also need a feature is SeekFunction, whi
 
 Through some efforts, including the extraction of assembly instructions code to solve the cross reference, directive, switch bitmap, SEH, compile, Link and other issues, I got the Peloader assembly instruction code, and successfully compiled into the object file.
 
-当前，一切问题都已经解决，并且POC代码也写好了。 简单说下POC代码分两部分，一部分是自己写了一个SayHi.dll，这个dll导出一个getMessage的function，这个function很简单就返回一个字符串。PeLoader只要能加载这个dll，并调用getMessage就说明抽取武器成功。
-第二部分就是整合了PeLoader汇编代码的测试程序，它会先将SayHi.dll读入内存，然后调用上面的BuildPeExecutor加载dll，然后调用seekFunction找到getMessage函数的其实地址并调用。
-
 At present, all the problems have been resolved, and POC code is also written. Simply put the POC code in two parts, one is SayHi.dll, the dll export the getMessage function, this function is very simple to return a string. If the PeLoader can load the dll and call getMessage, it shows the success of extracting the weapon.
 The second part is the integration of the PeLoader assembly code of the test program, it will first read SayHi.dll memory, call the above BuildPeExecutor load dll, and then call seekFunction getMessage function to find the address and call.
 
