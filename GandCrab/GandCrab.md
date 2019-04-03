@@ -40,4 +40,5 @@ lAQAAOdRXMC9UBjj6uq6mZfhIfzVbK5m0WfQZyTiHZ8WtYHyG5P53Fd+2iXjO22X3Jcr/jqqbEjFmgha
 
 T收到的解密工具一共有8个，虽然8个工具的哈希值并不一样，但是它们却具有相同的Size。基于经验，T判断这8个工具是相同的解密算法，差异的部分可能就是解密需要的Key。
 
+![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/diff%20decryptor.png)
 
