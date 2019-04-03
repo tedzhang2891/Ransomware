@@ -46,9 +46,44 @@ T收到的解密工具一共有8个，虽然8个工具的哈希值并不一样�
 
 "看起来差异只有两块，一块显而易见是加密后的文件扩展名，另一块看起来很像是解密密钥。"
 
-![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/extention.png)
+![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/2-Target%20extension.png)
 
 正如T所推测的，这块重要的数据实际上是被Base64编码后的解密密钥。
 
-![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/base64encoded_rsakey.png)
+![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/1-base64%20RSA%20private%20key.png)
+
+“Base64 decode RSA私钥，然后检查被加密后的扩展名是否与解密工具一致。”
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/3-base64decode%20RSA%20pbData.png)
+
+“判断输入的路径是一个目录或特定文件，如果是执行目录解密，如果没有传入文件路径，执行全盘解密。”
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/4-decryptSingleOrFull.png)
+
+"解密数据之前，首先初始化内部结构"
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/5-make%20a%20struct%20to%20save%20RSA%20pbData%20and%20size.png)
+
+虽然在之后通过分析病毒样本，T得到了病毒在加密文件后在文件末尾追加了一个解密块，里面存储了很多信息。（但此时T并不知道加密后文件的组织形式）
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/6-each%20file%20have%20this%20structure%20at%20end%20of%20file.png)
+
+经过一些分析，T已经掌握了解密过程。他很兴奋：“看起来，解密的过程分为几个步骤。”
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/10-load%20decrypt%20info.png)
+
+“首先，分配一块540字节的内存，然后调整文件指针，指向被加密文件的末尾。从文件末尾读取540字节的数据，并比较magic_sign_b和magic_sign_a是否等于0x93892918和0x38281。如果是，说明文件是被GandCrab加密的，那么将从解密块中提取出被加密的SalsaKey并用RSA私钥解密它。”
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/9-decrypt%20salsa%20logic.png)
+
+"最后，从解密块中读出被加密的文件一共被分成了多少块，一次取出一块用Salsa20算法解密数据。因为是流式加密，所以解密后的块大小与未解密的块大小一致，所以并不需要调整块大小。"
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/8-full%20decrypt%20logic.png)
+
+通过分析黑客的解密工具，T产生了一个不好的预感。解密数据需要RSA Key，这个Key是如何产生的，如果我们无法获取这个Key将无法提供解密程序。
+
+“目前下结论还太早，我手中还有病毒样本。既然解密工具中无法找到更多的信息，那现在必须开始分析病毒样本了。” T深吸了一口气，病毒样本不像解密工具，很多的病毒样本都采用了对抗分析的机制，在这个领域黑客与病毒分析员之间进行着无休止的斗争。
+
+
+
 
