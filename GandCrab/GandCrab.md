@@ -42,3 +42,13 @@ T收到的解密工具一共有8个，虽然8个工具的哈希值并不一样�
 
 ![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/diff%20decryptor.png)
 
+利用BeyondCompare工具，并选择16进制比较两个解密工具后，T发现正如他所判断的，两个文件之间的差异非常小。
+
+"看起来差异只有两块，一块显而易见是加密后的文件扩展名，另一块看起来很像是解密密钥。"
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/extention)
+
+正如T所推测的，这块重要的数据实际上是被Base64编码后的解密密钥。
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/base64encoded_rsakey)
+
