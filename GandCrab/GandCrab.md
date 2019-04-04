@@ -202,7 +202,7 @@ T打开分析工具，加载了提取出来的载荷代码。
 
 “原来是准备用新的程序替换主程序啊。”
 
-![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/b2-fillmaincode)
+![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/b2-fillmaincode.png)
 
 事实上，载荷代码中隐藏了一个完整的PE文件，这个PE文件会在运行时被释放出来，并且覆盖主文件的进程空间。
 
