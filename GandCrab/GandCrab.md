@@ -88,19 +88,19 @@ T收到的解密工具一共有8个，虽然8个工具的哈希值并不一样�
 
 “目前下结论还太早，我手中还有病毒样本。既然解密工具中无法找到更多的信息，那现在必须开始分析病毒样本了。” T深吸了一口气，病毒样本不像解密工具，很多的病毒样本都采用了对抗分析的机制，在这个领域黑客与病毒分析员之间进行着无休止的斗争。
 
-## 第二章 正面交锋
+## 第二章 初识样本
 
 在勒索软件领域T有丰富的经验，分析恶意软件的过程与调查犯罪现场非常相似，收集可以收集到的一切信息是分析过程的重要一环。
 
 “我应该先尝试通过PE软件分析下这个样本，看看有没有什么发现。”，T熟练的打开一款PE分析工具，并将样本送入分析。
 
-分析软件很快将病毒样本的信息显示了出来，“UPX Packed？**[1]****[2]**”，T发现了重要信息。一旦发现压缩壳，继续分析的意义已经不大了。
+分析软件很快将病毒样本的信息显示了出来，“UPX Packed？**[1]** **[2]**”，T发现了重要信息。一旦发现压缩壳，继续分析的意义已经不大了。
 
 “必须先脱壳**[3]**”，因为UPX是开源的，只要锁定恶意软件采用的版本，通过UPX工具既可以脱壳。
 
 ![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/b2-exeinfope.png)
 
-通过ExeInfoPE**[4]**这款软件，T已经锁定了upx的版本，在github上下载对应版本的UPX后，T成功的将病毒样本脱壳，并得到了病毒的主文件。
+通过ExeInfoPE **[4]**这款软件，T已经锁定了upx的版本，在github上下载对应版本的UPX后，T成功的将病毒样本脱壳，并得到了病毒的主文件。
 
 脱壳后的样本依旧是一个PE文件，经过ExeInfoPE分析后，T了解到了两点有价值的信息：
 
@@ -118,7 +118,38 @@ T收到的解密工具一共有8个，虽然8个工具的哈希值并不一样�
 
 快速分析已经无法得到更多有价值的信息了，为了找出加密方法，必须进行主文件分析了。
 
-“这个样本很奇怪，”
+这是一个看似很平常样本文件，它的段分布很合理，并且代码段中并没有夹杂不可解释的数据。
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/b2-segments.png)
+
+“这个样本很奇怪，静态分析无法定位到病毒加密算法的位置。”。基于大量样本分析工具的经验，T判断这应该存在一个不是那么显而易见的壳。通过代码分析，他找到了一些奇怪的数据被放到了栈上。
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/b2-dataonstack.png)
+
+这种写法在正常软件中是很少见的，T感到继续分析主样本是没有意义的，如果主样本中存在一个自定义壳，那么它一定会执行起来并把真正的载荷释放出来。
+
+“我应该把精力放在载荷上，开始动态分析，快速跳过壳的部分。”
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/b2-setexecutable.png)
+
+“栈上的数据被处理后复制到内存，并设置为可执行？”，一旦数据被设置为可执行，那说明这部分是动态加载的代码，这种实现方式一般都是为了躲避静态分析，是非常重要的线索。
+
+“我应该把这部分代码抽取出来，进行静态分析。”，T同时在输入框中键入了抽取指令，但是他失败了。
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/b2-extractfailed.png)
+
+无论怎么尝试，总是会导致程序崩溃。“显然，这里有黑客植入的保护技术，但是我不应该在这里浪费时间。”，T放弃了采用Windbg的命令抽取方式，转而采用编写IDC脚本，并且这一次他成功了。
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/b2-idcscript.png)
+
+病毒程序在将载荷标记为可执行后，会将控制权转交给它，至此病毒再也不会回到主程序中了。
+
+![](https://github.com/tedzhang2891/Ransomware/blob/master/GandCrab/picture/b2-executepayload.png)
+
+## 第三章 神秘代码
+
+
+
 
 ## 附录
 
